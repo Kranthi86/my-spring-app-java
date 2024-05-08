@@ -3,60 +3,29 @@
 
 name: Build and deploy JAR app to Azure Web App - jammi
 
-on:
-  push:
-    branches:
-      - Kranthi86-patch-1
-  workflow_dispatch:
+on: [push]
+
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v4
+    # checkout the repo
+    - name: 'Checkout Github Action'
+      uses: actions/checkout@master
 
-      - name: Set up Java version
-        uses: actions/setup-java@v1
-        with:
-          java-version: '17'
+    - uses: azure/docker-login@v1
+      with:
+        login-server: contoso.azurecr.io
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build with Maven
-        run: mvn clean install
+    - run: |
+        docker build . -t contoso.azurecr.io/nodejssampleapp:${{ github.sha }}
+        docker push contoso.azurecr.io/nodejssampleapp:${{ github.sha }} 
 
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v3
-        with:
-          name: java-app
-          path: '${{ github.workspace }}/target/*.jar'
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: 'testing'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write #This is required for requesting the JWT
-  
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v3
-        with:
-          name: java-app
-      
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_BBDEE6F2CECA49AA84EF131D0E5796EF }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_6861384FB98B42C0A8E638C11CC8665D }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_299B9D7B83FE47BD8568163578F595B7 }}
-
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: 'jammi'
-          slot-name: 'testing'
-          package: '*.jar'
-          
+    - uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'node-rnc'
+        publish-profile: ${{ secrets.jammi }}
+        images: 'contoso.azurecr.io/nodejssampleapp:${{ github.sha }}'
